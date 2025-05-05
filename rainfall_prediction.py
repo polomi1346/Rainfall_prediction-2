@@ -1,3 +1,4 @@
+# 1. Import libraries
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
@@ -6,100 +7,73 @@ import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
-from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 
-# Load and preprocess data
+# 2. Load dataset
 df = pd.read_csv("Rainfall_Data_Germany_Complete.csv")
-df = df.dropna()
-df.columns = df.columns.str.strip()
-df["Temperature (°C)"] = pd.to_numeric(df["Temperature (°C)"], errors="coerce")
-df["Humidity (%)"] = pd.to_numeric(df["Humidity (%)"], errors="coerce")
-df = df.dropna()
+df.columns = df.columns.str.strip()  # Clean column names
 
-# Encode categorical variables
-df = pd.get_dummies(df, columns=["City", "Climate_Type"], drop_first=True)
+# 3. Drop rows with missing values in key columns
+df = df.dropna(subset=["temp", "humidity", "dew", "precip", "datetime", "windspeed", "cloudcover"])
 
-# Feature engineering
-df["Temp^2"] = df["Temperature (°C)"] ** 2
-df["Humidity^2"] = df["Humidity (%)"] ** 2
-df["Temp*Humidity"] = df["Temperature (°C)"] * df["Humidity (%)"]
+# 4. Convert datetime
+df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+df = df.dropna(subset=["datetime"])  # Drop rows with invalid datetime
+df["month"] = df["datetime"].dt.month
+df["year"] = df["datetime"].dt.year
 
-# Features and target
-features = ["Latitude", "Longitude", "Month", "Year", "Elevation (m)", "Temperature (°C)",
-            "Humidity (%)", "Temp^2", "Humidity^2", "Temp*Humidity"]
-features += [col for col in df.columns if col.startswith("City_") or col.startswith("Climate_Type_")]
+# 5. Encode categorical feature: preciptype (e.g. rain, snow)
+df["preciptype"] = df["preciptype"].fillna("")
+df["precip_rain"] = df["preciptype"].apply(lambda x: 1 if 'rain' in x.lower() else 0)
+df["precip_snow"] = df["preciptype"].apply(lambda x: 1 if 'snow' in x.lower() else 0)
+
+# 6. Define features and target
+features = [
+    "temp", "humidity", "dew", "windspeed", "cloudcover",
+    "month", "year", "precip_rain", "precip_snow"
+]
 X = df[features]
-y = df["Rainfall (mm)"]
+y = df["precip"]  # Target: rainfall in mm
 
-# Split dataset
+# 7. Train-test split
 x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Models
-lr = LinearRegression().fit(x_train, y_train)
-rf = RandomForestRegressor(random_state=42).fit(x_train, y_train)
-svr = SVR().fit(x_train, y_train)
-
-# Predictions
-pred_lr = lr.predict(x_test)
-pred_rf = rf.predict(x_test)
-pred_svr = svr.predict(x_test)
-
-# Metrics
-mae_lr, r2_lr = mean_absolute_error(y_test, pred_lr), r2_score(y_test, pred_lr)
-mae_rf, r2_rf = mean_absolute_error(y_test, pred_rf), r2_score(y_test, pred_rf)
-mae_svr, r2_svr = mean_absolute_error(y_test, pred_svr), r2_score(y_test, pred_svr)
-
-# GridSearchCV for Random Forest
-param_grid = {
-    'n_estimators': [50, 100, 200],
-    'max_depth': [None, 10, 20],
-    'min_samples_split': [2, 5]
+# 8. Train models
+models = {
+    "Linear Regression": LinearRegression(),
+    "Random Forest": RandomForestRegressor(random_state=42),
+    "SVR": SVR()
 }
-grid_search = GridSearchCV(RandomForestRegressor(random_state=42), param_grid, cv=3, scoring='neg_mean_absolute_error')
-grid_search.fit(x_train, y_train)
-best_rf = grid_search.best_estimator_
 
-# Predictions with best RF model
-pred_best_rf = best_rf.predict(x_test)
-mae_best_rf = mean_absolute_error(y_test, pred_best_rf)
-r2_best_rf = r2_score(y_test, pred_best_rf)
+results = []
+for name, model in models.items():
+    model.fit(x_train, y_train)
+    preds = model.predict(x_test)
+    mae = mean_absolute_error(y_test, preds)
+    r2 = r2_score(y_test, preds)
+    results.append((name, mae, r2))
 
-# Model comparison table with SVR
-comparison_table = go.Figure(data=[go.Table(
-    columnwidth=[120, 100, 100],
-    header=dict(
-        values=["<b>Model</b>", "<b>MAE</b>", "<b>R²</b>"],
-        fill_color="#50bcd3",
-        align="center",
-        font=dict(color="white", size=18, family="Segoe UI")
-    ),
-    cells=dict(
-        values=[
-            ["Linear Regression", "Random Forest", "Tuned RF", "SVR"],
-            [f"{mae_lr:.2f}", f"{mae_rf:.2f}", f"{mae_best_rf:.2f}", f"{mae_svr:.2f}"],
-            [f"{r2_lr:.2f}", f"{r2_rf:.2f}", f"{r2_best_rf:.2f}", f"{r2_svr:.2f}"]
-        ],
-        fill_color="lightgray",
-        align="center",
-        font=dict(color="black", size=16, family="Segoe UI")
-    )
+# 9. Show comparison table
+comparison = go.Figure(data=[go.Table(
+    header=dict(values=["Model", "MAE", "R²"]),
+    cells=dict(values=[[r[0] for r in results],
+                       [f"{r[1]:.2f}" for r in results],
+                       [f"{r[2]:.2f}" for r in results]])
 )])
-comparison_table.update_layout(
-    title="Model Comparison Table",
-    title_font=dict(color="#50bcd3", size=22, family="Segoe UI"),
-    paper_bgcolor="white"
-)
-comparison_table.show()
+comparison.update_layout(title="Model Performance Comparison")
+comparison.show()
 
-# Scatter: Actual vs Predicted (Tuned RF)
-scatter_fig = px.scatter(
-    x=y_test,
-    y=pred_best_rf,
-    labels={"x": "Actual Rainfall (mm)", "y": "Predicted Rainfall (mm)"},
-    title="Actual vs Predicted Rainfall (Tuned Random Forest)"
+# 10. Actual vs Predicted plot for best model (Random Forest)
+best_model = models["Random Forest"]
+y_pred_best = best_model.predict(x_test)
+
+scatter = px.scatter(
+    x=y_test, y=y_pred_best,
+    labels={"x": "Actual Precipitation (mm)", "y": "Predicted Precipitation (mm)"},
+    title="Random Forest: Actual vs Predicted Rainfall"
 )
-scatter_fig.add_trace(go.Scatter(x=y_test, y=y_test, mode='lines', name='Ideal Prediction Line',
-                                 line=dict(color="#ffaa55", dash="dash")))
-scatter_fig.update_layout(template="plotly_dark")
-scatter_fig.show()
+scatter.add_trace(go.Scatter(x=y_test, y=y_test, mode='lines', name='Ideal Fit',
+                             line=dict(color="orange", dash="dash")))
+scatter.update_layout(template="plotly_white")
+scatter.show()
