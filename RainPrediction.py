@@ -76,20 +76,12 @@ test_data_prediction = model.predict(X_test)
 print(test_data_prediction)
 
 
-# plt.scatter(X_test, Y_test, color = 'red', label = "Actual")
-# plt.plot(X_test, test_data_prediction, color='blue', label="predicted")
-# plt.xlabel(' Actual Precipitation')
-# plt.ylabel('Predicted Precipitation')
-# plt.title(' Actual vs Predicted Rainfall')
-# plt.show()
-
-# Choose the feature you want to plot (e.g., the first feature 'tempmax')
-# This assumes the feature you want to plot is the first one in X_test
-feature_index = 11  # For example, precipcover
+# Its selecting index of the column for x-axis
+feature_index = 11  # For example, precipcover hence it says about the x axis
 print(Rain_data.columns[feature_index])
 X_test_feature = X_test[:, feature_index]
 
-# Now plot the scatter plot using that feature against the actual target (Y_test)
+# plot the scatter plot
 plt.scatter(X_test_feature, Y_test, color='red', label="Actual")
 
 # Plot the predictions
