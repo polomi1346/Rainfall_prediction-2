@@ -24,7 +24,13 @@ Rain_data = Rain_data.drop(columns=['datetime', 'preciptype'])  # Example only â
 
 #important columns with object type will be encoded since its needed for prediction, cant be deleted.
 Rain_data['name'] = pd.factorize(Rain_data['name'])[0]
-Rain_data['sunrise'] = pd.factorize(Rain_data['sunrise'])[0]
+# Rain_data['sunrise'] = pd.factorize(Rain_data['sunrise'])[0]
+Rain_data['sunrise'] = pd.to_datetime(Rain_data['sunrise'], errors='coerce')
+Rain_data['sunrise'] = Rain_data['sunrise'].astype('int64') // 10**9  # Convert to seconds
+Rain_data['sunset'] = pd.to_datetime(Rain_data['sunset'], errors='coerce')
+Rain_data['sunset'] = Rain_data['sunset'].astype('int64') // 10**9  # Convert to seconds
+
+
 Rain_data['sunset'] = pd.factorize(Rain_data['sunset'])[0]
 Rain_data['conditions'] = pd.factorize(Rain_data['conditions'])[0]
 Rain_data['description'] = pd.factorize(Rain_data['description'])[0]
@@ -32,7 +38,7 @@ Rain_data['icon'] = pd.factorize(Rain_data['icon'])[0]
 Rain_data['stations'] = pd.factorize(Rain_data['stations'])[0]
 
 
-#errors
+#errors encountered been handled
 Rain_data = Rain_data.drop(columns=['City'], errors='ignore')
 
 
